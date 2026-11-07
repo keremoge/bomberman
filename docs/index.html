@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="tr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Bomberman</title>
+<style>
+body{margin:0;background:#111;color:#eee;font:16px monospace;text-align:center;touch-action:manipulation;user-select:none}
+canvas{width:100%;max-width:620px;background:#000}
+#hud{padding:6px}
+.pad{display:grid;grid-template-columns:repeat(3,70px);gap:6px;justify-content:center;margin:8px}
+button{height:60px;font-size:26px;border-radius:12px;border:0;background:#334;color:#fff}
+button:active{background:#668}
+#bomb{background:#a33;width:150px}
+.row{display:flex;justify-content:center;align-items:center;gap:20px}
+</style></head><body>
+<div id="hud"></div>
+<canvas id="c"></canvas>
+<div class="row">
+<div class="pad">
+<span></span><button data-k="up">▲</button><span></span>
+<button data-k="left">◀</button><button data-k="down">▼</button><button data-k="right">▶</button>
+</div>
+<button id="bomb" data-k="bomb">💣 BOMBA</button>
+</div>
+<script>
+const W=31,H=13,BT=25,FT=6,TICK=80,S=20;
+let grid,flame,bombs,enemies,px,py,score=0,level=1,lives=3,range=2,tick=0,over=false,pause=0;
+const r=n=>Math.floor(Math.random()*n);
+function init(){
+ grid=[];flame=[];bombs=[];enemies=[];
+ for(let y=0;y<H;y++){grid.push([]);flame.push(Array(W).fill(0));
+  for(let x=0;x<W;x++)grid[y].push(y==0||x==0||y==H-1||x==W-1||(x%2==0&&y%2==0)?'#':(r(100)<40?'+':' '));}
+ px=py=1;grid[1][1]=grid[1][2]=grid[2][1]=' ';
+ while(enemies.length<2+level){const x=1+r(W-2),y=1+r(H-2);if(grid[y][x]==' '&&x+y>8)enemies.push({x,y});}
+}
+const bombAt=(x,y)=>bombs.some(b=>b.x==x&&b.y==y);
+function explode(b){
+ flame[b.y][b.x]=FT;
+ for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]])
+  for(let i=1;i<=range;i++){const x=b.x+dx*i,y=b.y+dy*i;
+   if(grid[y][x]=='#')break;flame[y][x]=FT;
+   if(grid[y][x]=='+'){grid[y][x]=' ';score+=10;break;}}
+}
+function move(dx,dy){if(grid[py+dy][px+dx]==' '&&!bombAt(px+dx,py+dy)){px+=dx;py+=dy;}}
+function bomb(){if(!bombAt(px,py)&&bombs.length<2)bombs.push({x:px,y:py,t:BT});}
+function update(){
+ bombs.forEach(b=>b.t--);
+ for(let again=true;again;){again=false;
+  for(let i=0;i<bombs.length;i++)if(bombs[i].t<=0||flame[bombs[i].y][bombs[i].x]>0){
+   explode(bombs.splice(i,1)[0]);again=true;break;}}
+ if(tick%4==0)for(const e of enemies)for(let k=0;k<6;k++){
+  const[dx,dy]=[[1,0],[-1,0],[0,1],[0,-1]][r(4)],nx=e.x+dx,ny=e.y+dy;
+  if(grid[ny][nx]==' '&&!bombAt(nx,ny)){e.x=nx;e.y=ny;break;}}
+ const n=enemies.length;enemies=enemies.filter(e=>flame[e.y][e.x]<=0);score+=100*(n-enemies.length);
+ if(flame[py][px]>0||enemies.some(e=>e.x==px&&e.y==py)){lives--;px=py=1;bombs=[];}
+ flame.forEach(row=>row.forEach((f,i)=>{if(f>0)row[i]--;}));
+ if(lives<=0)over=true;
+ else if(!enemies.length){level++;if(level%2==0&&range<5)range++;pause=15;init();}
+}
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+cv.width=W*S;cv.height=H*S;
+function draw(){
+ g.fillStyle='#000';g.fillRect(0,0,cv.width,cv.height);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  const c=grid[y][x];
+  if(c=='#')g.fillStyle='#35a';else if(c=='+')g.fillStyle='#b52';else if(flame[y][x]>0)g.fillStyle='#fd0';else continue;
+  g.fillRect(x*S,y*S,S-1,S-1);
+  if(flame[y][x]>0&&c!='#'){g.fillStyle='#fd0';g.fillRect(x*S,y*S,S-1,S-1);}}
+ g.font=(S-3)+'px sans-serif';g.textBaseline='top';
+ bombs.forEach(b=>g.fillText('💣',b.x*S,b.y*S));
+ enemies.forEach(e=>g.fillText('👾',e.x*S,e.y*S));
+ g.fillText('🙂',px*S,py*S);
+ document.getElementById('hud').textContent=`Seviye ${level}  Skor ${score}  Can ${lives}  Menzil ${range}`+(over?'  OYUN BİTTİ - dokun':'');
+}
+function press(k){
+ if(over){over=false;score=0;level=1;lives=3;range=2;init();return;}
+ if(k=='up')move(0,-1);else if(k=='down')move(0,1);else if(k=='left')move(-1,0);else if(k=='right')move(1,0);else if(k=='bomb')bomb();
+}
+document.querySelectorAll('button').forEach(b=>b.addEventListener('pointerdown',e=>{e.preventDefault();press(b.dataset.k);}));
+addEventListener('keydown',e=>{const m={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right',' ':'bomb'}[e.key];if(m){e.preventDefault();press(m);}});
+init();
+setInterval(()=>{if(pause>0)pause--;else if(!over){tick++;update();}draw();},TICK);
+</script></body></html>
